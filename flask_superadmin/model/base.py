@@ -244,19 +244,21 @@ class BaseModelAdmin(BaseView):
         return args
 
     def page_url(self, page):
+        filters = self.filters
         search_query = self.search
         sort, desc = self.sort
         if sort and desc:
             sort = '-' + sort
         if page == 0:
             page = None
-        return url_for(self.get_url_name('index'), page=page, sort=sort, q=search_query)
+        return url_for(self.get_url_name('index'), page=page, sort=sort, q=search_query, **filters)
 
     def sort_url(self, sort, desc=None):
         if sort and desc:
             sort = '-' + sort
         search_query = self.search
-        return url_for(self.get_url_name('index'), sort=sort, q=search_query)
+        filters = self.filters
+        return url_for(self.get_url_name('index'), sort=sort, q=search_query, **filters)
 
     @expose('/', methods=('GET', 'POST',))
     def list(self):
