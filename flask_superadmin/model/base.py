@@ -143,10 +143,11 @@ class BaseModelAdmin(BaseView):
     def construct_search(self, field_name):
         raise NotImplemented()
 
-    def get_queryset(self):
+    def get_queryset(self, filters=None):
         raise NotImplemented()
 
-    def get_list(self):
+    def get_list(self, page=0, sort=None, sort_desc=None, execute=False,
+                 search_query=None, filters=None):
         raise NotImplemented()
 
     def get_url_name(self, name):
@@ -212,6 +213,18 @@ class BaseModelAdmin(BaseView):
     def search(self):
         return request.args.get('q', None)
 
+    @property
+    def filters(self):
+        args = dict(request.args)
+
+        # pop everything that isn't a filter
+        args.pop('sort', None)
+        args.pop('page', None)
+        args.pop('q', None)
+
+        args = { k: args[k][0] for k in args if args[k] and args[k][0] }
+        return args
+
     def page_url(self, page):
         sort, desc = self.sort
         if sort and desc:
@@ -240,12 +253,15 @@ class BaseModelAdmin(BaseView):
         sort, sort_desc = self.sort
         page = self.page
         search_query = self.search
-        count, data = self.get_list(page=page, sort=sort, sort_desc=sort_desc, search_query=search_query)
-        sort, sort_desc = self.sort
+        filters = self.filters
+
+        count, data = self.get_list(page=page, sort=sort, sort_desc=sort_desc,
+                                    search_query=search_query,
+                                    filters=filters)
         return self.render(self.list_template, data=data, page=page,
                            total_pages=self.total_pages(count), sort=sort,
                            sort_desc=sort_desc, count=count, modeladmin=self,
-                           search_query=search_query)
+                           search_query=search_query, filters=filters)
 
     @expose('/<pk>/', methods=('GET', 'POST'))
     def edit(self, pk):
