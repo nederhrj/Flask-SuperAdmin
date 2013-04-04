@@ -8,7 +8,7 @@
 
     <form action="" method="POST" class="form-horizontal">
         <input type="hidden" name="action" value="delete" />
-        <p>Do you really want to delete all this models?</p>
+        <p>Do you really want to delete all these models?</p>
         <ul>
             {% for instance in instances %}
                 {% set pk = admin_view.get_pk(instance) %}

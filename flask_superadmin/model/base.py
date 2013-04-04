@@ -289,7 +289,7 @@ class BaseModelAdmin(BaseView):
     def edit(self, pk):
         try:
             instance = self.get_object(pk)
-        except self.DoesNotExist:
+        except self.model.DoesNotExist:
             abort(404)
 
         Form = self.get_form(include_readonly=request.method == 'GET')
