@@ -88,18 +88,24 @@ class ModelAdmin(BaseModelAdmin):
         else:
             return literal(field_name).contains
 
+    def apply_search(self, qs, search_query):
+        if search_query:
+            orm_lookups = [self.construct_search(str(search_field))
+                           for search_field in self.search_fields]
+            for bit in search_query.split():
+                or_queries = [orm_lookup(bit) for orm_lookup in orm_lookups]
+                qs = qs.filter(sum(or_queries))
+        return qs
+
     def get_list(self, page=0, sort=None, sort_desc=None, execute=False,
                  search_query=None, filters=None):
         qs = self.get_queryset(filters=filters)
 
         # Filter by search query
         if search_query and self.search_fields:
-            orm_lookups = [self.construct_search(str(search_field))
-                           for search_field in self.search_fields]
-            for bit in search_query.split():
-                or_queries = [orm_lookup(bit) for orm_lookup in orm_lookups]
-                qs = qs.filter(sum(or_queries))
+            qs = self.apply_search(qs, search_query)
 
+        # Calculate number of rows
         count = qs.count()
 
         #Order queryset
