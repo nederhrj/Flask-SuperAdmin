@@ -143,6 +143,9 @@ class BaseModelAdmin(BaseView):
     def construct_search(self, field_name):
         raise NotImplemented()
 
+    def apply_search(self, qs, search_query):
+        raise NotImplemented()
+
     def get_queryset(self):
         raise NotImplemented()
 
