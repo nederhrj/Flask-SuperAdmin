@@ -6,7 +6,6 @@ from flask import request, url_for, redirect, flash, abort
 
 from flask_superadmin.babel import gettext
 from flask_superadmin.base import BaseView, expose
-# from flask_superadmin.form import format_form
 from flask_superadmin.form import BaseForm, ChosenSelectWidget, DatePickerWidget, \
     DateTimePickerWidget, FileField
 
