@@ -92,12 +92,12 @@
             {% if delete %}
                 <span class="delete">Delete</span>
             {% else %}
-                <h3>{{ ff.short_name|capitalize }}</h3>
+                <h3>{{ admin_view.field_name(ff.short_name) }}</h3>
             {% endif %}
 
             <div>{{ render_formfield(ff.form) }}</div>
         {% elif ff.type == "ListField" %}
-            <h3>{{ff.short_name|capitalize}}</h3>
+            <h3>{{ admin_view.field_name(ff.short_name) }}</h3>
             {% if delete %}
                 <span class="delete">Delete</span>
             {% endif %}
@@ -115,7 +115,8 @@
             {% if delete %}
                 <span class="delete">Delete</span>
             {% else %}
-                <label for="{{ ff.label.field_id }}">{{ ff.label.text|capitalize }}</label>
+                <label for="{{ ff.label.field_id }}">{{ admin_view.field_name(ff.label.text) }}</label>
+        
             {% endif %}
 
             <div>
