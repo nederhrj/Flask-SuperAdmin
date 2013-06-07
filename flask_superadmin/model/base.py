@@ -282,6 +282,7 @@ class BaseModelAdmin(BaseView):
         count, data = self.get_list(page=page, sort=sort, sort_desc=sort_desc,
                                     search_query=search_query,
                                     filters=filters)
+
         return self.render(self.list_template, data=data, page=page,
                            total_pages=self.total_pages(count), sort=sort,
                            sort_desc=sort_desc, count=count, modeladmin=self,
