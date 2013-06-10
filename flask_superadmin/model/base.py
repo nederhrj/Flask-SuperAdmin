@@ -70,6 +70,11 @@ class BaseModelAdmin(BaseView):
     field_overrides = {}
     field_args = None
 
+    # list of extra readonly fields that should be included in the form
+    # the names should point to the methods in this class. Those methods will
+    # be passed an obj instance as a parameter
+    extra_readonly = None
+
     @staticmethod
     def model_detect(model):
         return False
@@ -111,6 +116,11 @@ class BaseModelAdmin(BaseView):
         for model, model_view in self.admin._models:
             if type(column_value) == model:
                 return '/admin/%s/%s/' % (model_view.endpoint, column_value.pk)
+
+    def get_extra_readonly(self, instance):
+        if self.extra_readonly:
+            return [getattr(self, method_name)(instance) for method_name in self.extra_readonly]
+        return []
 
     def get_converter(self):
         raise NotImplemented()
