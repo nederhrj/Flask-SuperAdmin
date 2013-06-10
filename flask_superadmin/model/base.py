@@ -16,7 +16,6 @@ class AdminModelConverter(object):
         field = super(AdminModelConverter, self).convert(*args, **kwargs)
         if field:
             widget = field.kwargs.get('widget', field.field_class.widget)
-            # print field, widget
             if isinstance(widget, widgets.Select):
                 field.kwargs['widget'] = ChosenSelectWidget(multiple=widget.multiple)
             elif issubclass(field.field_class, fields.DateTimeField):
@@ -41,10 +40,15 @@ class BaseModelAdmin(BaseView):
     """
     BaseModelView provides create/edit/delete functionality for a peewee Model.
     """
-    # columns to display in the list index - can be field names or callables on
-    # a model instance, though in the latter case they will not be sortable
+
     list_per_page = 20
+
+    # columns to display in the list index - can be field names or callables
+    # on a model instance, though in the latter case they will not be sortable
     list_display = tuple()
+
+    # filters to display in the UI
+    list_filters = tuple()
 
     # form parameters, lists of fields
     exclude = None
@@ -245,6 +249,12 @@ class BaseModelAdmin(BaseView):
         args = { k: args[k][0] for k in args if args[k] and args[k][0] }
         return args
 
+    def get_list_filters(self):
+        """ Checks the list_filters parameter and returns a title and choices
+        for each filter.
+        """
+        raise NotImplemented()
+
     def page_url(self, page):
         filters = self.filters
         search_query = self.search
@@ -253,14 +263,16 @@ class BaseModelAdmin(BaseView):
             sort = '-' + sort
         if page == 0:
             page = None
-        return url_for(self.get_url_name('index'), page=page, sort=sort, q=search_query, **filters)
+        return url_for(self.get_url_name('index'), page=page, sort=sort,
+                       q=search_query, **filters)
 
     def sort_url(self, sort, desc=None):
         if sort and desc:
             sort = '-' + sort
         search_query = self.search
         filters = self.filters
-        return url_for(self.get_url_name('index'), sort=sort, q=search_query, **filters)
+        return url_for(self.get_url_name('index'), sort=sort, q=search_query,
+                       **filters)
 
     @expose('/', methods=('GET', 'POST',))
     def list(self):
@@ -319,10 +331,6 @@ class BaseModelAdmin(BaseView):
     def delete(self, pk=None, *pks):
         if pk:
             pks += pk,
-            # collected = {}
-            # if self.delete_collect_objects:
-            #     for obj in query:
-            #         collected[obj.get_pk()] = self.collect_objects(obj)
 
         if request.method == 'POST' and 'confirm_delete' in request.form:
             count = len(pks)
@@ -334,11 +342,7 @@ class BaseModelAdmin(BaseView):
         else:
             instances = self.get_objects(*pks)
 
-        return self.render(self.delete_template,
-            instances=instances
-            # query=query,
-            # collected=collected,
-        )
+        return self.render(self.delete_template, instances=instances)
 
 
 class ModelAdmin(object): pass
