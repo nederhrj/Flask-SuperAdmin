@@ -37,8 +37,10 @@ def prettify(str):
 
 
 class BaseModelAdmin(BaseView):
-    """
-    BaseModelView provides create/edit/delete functionality for a peewee Model.
+    """ BaseModelAdmin provides create/edit/delete functionality for an
+    abstract Model. The abstraction is further customized by the
+    backend-specific model admin (see flask_superadmin/model/backends/) and
+    by the user-defined admin classes inheriting from ModelAdmin.
     """
 
     # Number of objects to display per page in the list view
@@ -52,12 +54,15 @@ class BaseModelAdmin(BaseView):
     # filters to display in the UI
     list_filters = tuple()
 
-    # form parameters, lists of fields
-    exclude = None
-    only = None
-    fields = None
-    readonly_fields = []
-    fields_order = None  # order of the fields in the form. Fields that aren't mentioned here are appended at the end
+    # Only fields with names specified in `fields` will be displayed in the
+    # form (minus the ones mentioned in `exclude`). The order is preserved,
+    # too. You can also include methods that are on the model admin, or on the
+    # model/document, as long as they are marked as read-only (i.e. included
+    # in `readonly_fields`). Priority of fields' lookup: methods on the model
+    # admin, methods/fields on the model/document.
+    fields = tuple()
+    readonly_fields = tuple()
+    exclude = tuple()
 
     form = None
 
@@ -70,14 +75,14 @@ class BaseModelAdmin(BaseView):
     add_template = 'admin/model/add.html'
     delete_template = 'admin/model/delete.html'
 
-    search_fields = None
-    actions = None
+    search_fields = tuple()
 
     field_overrides = {}
 
-    # a dictionary of field_name: overridden_params_dict, e.g.
-    # { 'first_name': { 'label': 'First', 'description': 'This is first name' } }
-    # parameters that can be overridden: label, description, validators, filters, default
+    # A dictionary of field_name: overridden_params_dict, e.g.
+    #   { 'name': { 'label': 'Name', 'description': 'This is a name' } }
+    # Parameters that can be overridden: label, description, validators,
+    # filters, default
     field_args = None
 
     # list of extra readonly fields that should be included in the form
@@ -133,10 +138,26 @@ class BaseModelAdmin(BaseView):
             if type(column_value) == model:
                 return '/admin/%s/%s/' % (model_view.endpoint, column_value.pk)
 
-    def get_extra_readonly(self, instance):
-        if self.extra_readonly:
-            return [getattr(self, method_name)(instance) for method_name in self.extra_readonly]
-        return []
+    def get_readonly_fields(self, instance):
+        ret_vals = {}
+        for field in self.readonly_fields:
+            if hasattr(self, field):
+                val = getattr(self, field)(instance)
+            else:
+                val = getattr(instance, field)
+                if callable(val):
+                    val = val()
+            if not isinstance(val, dict):
+                # Check if the value is a reference field to a doc/model
+                # registered in the admin. If so, link to it.
+                reference = self.get_reference(val)
+                val = {
+                    'label': prettify(field),
+                    'value': val,
+                    'url': reference if reference else None
+                }
+            ret_vals[field] = val
+        return ret_vals
 
     def get_converter(self):
         raise NotImplemented()
@@ -147,23 +168,15 @@ class BaseModelAdmin(BaseView):
         """
         raise NotImplemented()
 
-    def get_form(self, include_readonly=False):
-        if include_readonly:
-            exclude = self.exclude
-        else:
-            exclude = list(set(self.exclude or []) | set(self.readonly_fields or []))
-
-        only = list(set(self.only or []) - set(exclude or []))
-
+    def get_form(self):
         model_form = self.get_model_form()
         converter = self.get_converter()
         if isinstance(converter, type):
             converter = converter()
-        form = model_form(self.model, base_class=BaseForm, only=only,
-                          exclude=exclude, field_args=self.field_args,
-                          converter=converter, fields_order=self.fields_order)
-
-        form.readonly_fields = self.readonly_fields
+        form = model_form(self.model, base_class=BaseForm, fields=self.fields,
+                          readonly_fields=self.readonly_fields,
+                          exclude=self.exclude, field_args=self.field_args,
+                          converter=converter)
         return form
 
     def get_add_form(self):
@@ -224,18 +237,21 @@ class BaseModelAdmin(BaseView):
 
     @expose('/add/', methods=('GET', 'POST'))
     def add(self):
+        if not self.can_create:
+            abort(403)
+
         Form = self.get_add_form()
         if request.method == 'POST':
             form = Form()
             if form.validate_on_submit():
                 try:
-                    instance = self.save_model(self.model(), form, True)
+                    instance = self.save_model(self.model(), form, adding=True)
                     flash(gettext('New %(model)s saved successfully',
                           model=self.get_display_name()), 'success')
                     return self.dispatch_save_redirect(instance)
                 except Exception, ex:
                     print traceback.format_exc()
-                    if self.session:
+                    if hasattr(self, 'session'):
                         self.session.rollback()
                     flash(gettext('Failed to add model. %(error)s',
                           error=str(ex)), 'error')
@@ -344,13 +360,13 @@ class BaseModelAdmin(BaseView):
         except self.model.DoesNotExist:
             abort(404)
 
-        Form = self.get_form(include_readonly=request.method == 'GET')
+        Form = self.get_form()
 
         if request.method == 'POST':
             form = Form(obj=instance)
             if form.validate_on_submit():
                 try:
-                    self.save_model(instance, form, False)
+                    self.save_model(instance, form, adding=False)
                     flash('Changes to %s saved successfully' % self.get_display_name(),
                           'success')
                     return self.dispatch_save_redirect(instance)
@@ -366,6 +382,9 @@ class BaseModelAdmin(BaseView):
 
     @expose('/<pk>/delete', methods=('GET', 'POST'))
     def delete(self, pk=None, *pks):
+        if not self.can_delete:
+            abort(403)
+
         if pk:
             pks += pk,
 
@@ -383,3 +402,4 @@ class BaseModelAdmin(BaseView):
 
 
 class ModelAdmin(object): pass
+
