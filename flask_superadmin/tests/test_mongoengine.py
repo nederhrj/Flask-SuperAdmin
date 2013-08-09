@@ -279,3 +279,85 @@ def test_sort():
     ok_('Ron' in resp.data)
     ok_('Steve' not in resp.data)
 
+def test_reference_linking():
+    app, admin = setup()
+
+    class Dog(Document):
+        name = StringField()
+
+        def __unicode__(self):
+            return self.name
+
+    class Person(Document):
+        name = StringField()
+        age = IntField()
+        pet = ReferenceField(Dog)
+
+    class DogAdmin(ModelAdmin):
+        pass
+
+    class PersonAdmin(ModelAdmin):
+        list_display = ('name', 'age', 'pet')
+        fields = ('name', 'age', 'pet')
+        readonly_fields = ('pet',)
+
+    Dog.drop_collection()
+    Person.drop_collection()
+    dog = Dog.objects.create(name='Sparky')
+    person = Person.objects.create(name='Stan', age=10, pet=dog)
+
+    admin.register(Dog, DogAdmin, name='Dogs')
+    admin.register(Person, PersonAdmin, name='People')
+
+    client = app.test_client()
+
+    # test linking on a list page
+    resp = client.get('/admin/person/')
+    dog_link = '<a href="/admin/dog/%s/">Sparky</a>' % dog.pk
+    ok_(dog_link in resp.data)
+
+    # test linking on an edit page
+    resp = client.get('/admin/person/%s/' % person.pk)
+    ok_('<textarea class="" id="name" name="name">Stan</textarea>' in resp.data)
+    ok_('<input class="" id="age" name="age" type="text" value="10">' in resp.data)
+    ok_(dog_link in resp.data)
+
+def test_no_csrf_in_form():
+    app, admin = setup()
+
+    class Person(Document):
+        name = StringField()
+        age = IntField()
+
+    Person.drop_collection()
+    person = Person.objects.create(name='Eric', age=10)
+
+    client = app.test_client()
+
+    view = CustomModelView(Person)
+    admin.add_view(view)
+
+    resp = client.get('/admin/person/%s/' % person.pk)
+    ok_('<textarea class="" id="name" name="name">Eric</textarea>' in resp.data)
+    ok_('<input class="" id="age" name="age" type="text" value="10">' in resp.data)
+    ok_('<label for="csrf_token">Csrf Token</label>' not in resp.data)
+
+def test_requred_int_field():
+    app, admin = setup()
+
+    class Person(Document):
+        name = StringField()
+        age = IntField(required=True)
+
+    Person.drop_collection()
+
+    view = CustomModelView(Person)
+    admin.add_view(view)
+
+    client = app.test_client()
+
+    resp = client.post('/admin/person/add/', data=dict(name='name', age='0'))
+    eq_(resp.status_code, 302)
+    ok_('This field is required.' not in resp.data)
+    ok_('error.' not in resp.data)
+
