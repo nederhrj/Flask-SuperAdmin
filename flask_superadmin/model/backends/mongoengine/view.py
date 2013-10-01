@@ -73,6 +73,9 @@ class ModelAdmin(BaseModelAdmin):
                     else:
                         del filters[key]
 
+                # exclude the _debug keyword
+                filters.pop('_debug', None)
+
             return qs.filter(**filters)
         return qs
 
