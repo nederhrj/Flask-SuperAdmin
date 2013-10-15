@@ -5,7 +5,6 @@ from orm import model_form, AdminModelConverter
 import operator
 import mongoengine
 
-from bson.objectid import ObjectId
 from flask import request
 
 SORTABLE_FIELDS = (
@@ -139,6 +138,9 @@ class ModelAdmin(BaseModelAdmin):
 
         if execute:
             qs = qs.all()
+
+        if self.select_related:
+            qs = qs.select_related()
 
         return count, qs
 
