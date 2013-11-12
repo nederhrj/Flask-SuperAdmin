@@ -86,7 +86,7 @@ class MockModelView(base.BaseModelAdmin):
 
     # Data
 
-    def get_list(self, page, sort, sort_desc, search_query):
+    def get_list(self, page, sort, sort_desc, search_query, **kwargs):
         self.search_arguments.append((page, sort, sort_desc, search_query))
         return len(self.all_models), self.all_models.itervalues()
 

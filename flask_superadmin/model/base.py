@@ -55,6 +55,9 @@ class BaseModelAdmin(BaseView):
     # the model or document.
     list_display = tuple()
 
+    # filters to display in the UI
+    list_filters = tuple()
+
     # Only fields with names specified in `fields` will be displayed in the
     # form (minus the ones mentioned in `exclude`). The order is preserved,
     # too. You can also include methods that are on the model admin, or on the
@@ -86,6 +89,16 @@ class BaseModelAdmin(BaseView):
     # filters, default
     field_args = None
 
+    # list of extra readonly fields that should be included in the form
+    # the names should point to the methods in this class. Those methods will
+    # be passed an obj instance as a parameter
+    extra_readonly = None
+
+    # Indicates whether the references for the objects in the list view should
+    # be bulk-fetched (this might speed things up significantly by reducing
+    # the number of queries for the list view)
+    select_related=False
+
     @staticmethod
     def model_detect(model):
         return False
@@ -105,6 +118,9 @@ class BaseModelAdmin(BaseView):
 
     def get_display_name(self):
         return self.model.__name__
+
+    def get_list_display(self):
+        return self.list_display
 
     def allow_pk(self):
         return not self.model._meta.auto_increment
@@ -204,10 +220,14 @@ class BaseModelAdmin(BaseView):
     def construct_search(self, field_name):
         raise NotImplemented()
 
-    def get_queryset(self):
+    def apply_search(self, qs, search_query):
         raise NotImplemented()
 
-    def get_list(self):
+    def get_queryset(self, filters=None):
+        raise NotImplemented()
+
+    def get_list(self, page=0, sort=None, sort_desc=None, execute=False,
+                 search_query=None, filters=None):
         raise NotImplemented()
 
     def get_url_name(self, name):
@@ -276,7 +296,26 @@ class BaseModelAdmin(BaseView):
     def search(self):
         return request.args.get('q', None)
 
+    @property
+    def filters(self):
+        args = dict(request.args)
+
+        # pop everything that isn't a filter
+        args.pop('sort', None)
+        args.pop('page', None)
+        args.pop('q', None)
+
+        args = { k: args[k][0] for k in args if args[k] and args[k][0] }
+        return args
+
+    def get_list_filters(self):
+        """ Checks the list_filters parameter and returns a title and choices
+        for each filter.
+        """
+        raise NotImplemented()
+
     def page_url(self, page):
+        filters = self.filters
         search_query = self.search
         sort, desc = self.sort
         if sort and desc:
@@ -284,13 +323,23 @@ class BaseModelAdmin(BaseView):
         if page == 0:
             page = None
         return url_for(self.get_url_name('index'), page=page, sort=sort,
-                       q=search_query)
+                       q=search_query, **filters)
+
+    def filter_url(self, filter, value):
+        sort, desc = self.sort
+        search_query = self.search
+        filters = self.filters
+        filters[filter] = value
+        return url_for(self.get_url_name('index'), sort=sort, q=search_query,
+                       **filters)
 
     def sort_url(self, sort, desc=None):
         if sort and desc:
             sort = '-' + sort
         search_query = self.search
-        return url_for(self.get_url_name('index'), sort=sort, q=search_query)
+        filters = self.filters
+        return url_for(self.get_url_name('index'), sort=sort, q=search_query,
+                       **filters)
 
     @expose('/', methods=('GET', 'POST',))
     def list(self):
@@ -307,13 +356,16 @@ class BaseModelAdmin(BaseView):
         sort, sort_desc = self.sort
         page = self.page
         search_query = self.search
+        filters = self.filters
+
         count, data = self.get_list(page=page, sort=sort, sort_desc=sort_desc,
-                                    search_query=search_query)
+                                    search_query=search_query,
+                                    filters=filters)
 
         return self.render(self.list_template, data=data, page=page,
                            total_pages=self.total_pages(count), sort=sort,
                            sort_desc=sort_desc, count=count, modeladmin=self,
-                           search_query=search_query)
+                           search_query=search_query, filters=filters)
 
     @expose('/<pk>/', methods=('GET', 'POST'))
     def edit(self, pk):
